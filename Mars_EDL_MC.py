@@ -7,8 +7,7 @@ import time
 from pathlib import Path
 
 
-# Constants
-R_MARS = 3396.2e3  
+R_MARS = 3396.2e3
 G = 6.674e-11      
 M_MARS = 6.4171e23 
 g0 = G * M_MARS / (R_MARS**2) 
@@ -19,17 +18,16 @@ ideal_params = {
         'wind_east': 0.0,
         'wind_north': 0.0,
         'landing_lon': 0.0000,
-        'landing_lat': 65.4196,
-        'landing_vel': 4799.24
+        'landing_lat': 0,
+        'landing_vel': 0
     }
 
 # Mars atmospheric model (simplified exponential)
 def mars_atmosphere(altitude):
-    rho0 = 0.020    # Surface density [kg/m^3]
+    rho0 = 0.020    
     H = 11.1e3      # Scale height [m]
     alt_clipped = np.maximum(altitude, 0)
     rho = rho0 * np.exp(-alt_clipped / H)
-
     return rho
 
 def mars_edl_dynamics(state, t, beta, wind_east, wind_north):
@@ -37,14 +35,11 @@ def mars_edl_dynamics(state, t, beta, wind_east, wind_north):
     altitude = r - R_MARS
     rho = mars_atmosphere(altitude)
     g = G * M_MARS / (r**2)
-    v_wind_e = wind_east 
-    v_wind_n = wind_north 
-    v_wind_r = 0
-    v_wind_theta = v_wind_e / (r * np.cos(phi))
-    v_wind_phi = v_wind_n / r 
-    v_rel = v  
+    v_wind_theta = wind_east / (r * np.cos(phi))  
+    v_wind_phi = wind_north / r                  
+    v_rel = v 
     drag_acc = 0.5 * rho * v_rel**2 / beta
-    dr_dt = -v * np.sin(gamma)  
+    dr_dt = v * np.sin(gamma) 
     dtheta_dt = v * np.cos(gamma) * np.sin(psi) / (r * np.cos(phi)) + v_wind_theta
     dphi_dt = v * np.cos(gamma) * np.cos(psi) / r + v_wind_phi
     dv_dt = -drag_acc - g * np.sin(gamma)
@@ -107,8 +102,73 @@ def simulate_edl(entry_altitude, entry_velocity, entry_gamma, entry_lat, entry_l
 
     return trajectory
 
-def run_monte_carlo(n_samples=500, seed=42):
-    np.random.seed(seed)
+      
+
+def plot_trajectory(trajectory, filename = "Nominal Trajectory"):
+    fig, axs = plt.subplots(2, 2, figsize=(12, 10))
+
+    # Altitude vs time
+    axs[0, 0].plot(trajectory['time'], trajectory['altitude'] / 10000)
+    axs[0, 0].set_xlabel('Time (s)')
+    axs[0, 0].set_ylabel('Altitude (km)')
+    axs[0, 0].set_title('Altitude vs Time')
+    axs[0, 0].grid(True)
+
+    # Velocity vs time
+    axs[0, 1].plot(trajectory['time'], trajectory['velocity'])
+    axs[0, 1].set_xlabel('Time (s)')
+    axs[0, 1].set_ylabel('Velocity (m/s)')
+    axs[0, 1].set_title('Velocity vs Time')
+    axs[0, 1].grid(True)
+
+    # Latitude vs longitude
+    axs[1, 0].plot(trajectory['longitude'], trajectory['latitude'])
+    axs[1, 0].set_xlabel('Longitude (deg)')
+    axs[1, 0].set_ylabel('Latitude (deg)')
+    axs[1, 0].set_title('Ground Track')
+    axs[1, 0].grid(True)
+
+    # Flight path angle vs time
+    axs[1, 1].plot(trajectory['time'], trajectory['gamma'])
+    axs[1, 1].set_xlabel('Time (s)')
+    axs[1, 1].set_ylabel('Flight Path Angle (deg)')
+    axs[1, 1].set_title('Flight Path Angle vs Time')
+    axs[1, 1].grid(True)
+
+    plt.tight_layout()
+    #plt.show()
+
+    if filename:
+        plt.savefig(filename, dpi=300, bbox_inches='tight')
+        print(f"Figure saved to {filename}")
+
+def simulate_nominal_trajectory():
+
+    # Nominal entry conditions
+    entry_altitude = 125000.0  
+    entry_velocity = 5500.0    
+    entry_gamma_deg = -12.0    
+    entry_lat_deg = 0.0        
+    entry_lon_deg = 0.0        
+    beta = 100.0               
+    wind_east = 0.0            
+    wind_north = 0.0         
+
+    trajectory = simulate_edl(
+        entry_altitude,
+        entry_velocity,
+        np.radians(entry_gamma_deg),
+        np.radians(entry_lat_deg),
+        np.radians(entry_lon_deg),
+        beta,
+        wind_east,
+        wind_north
+    )
+
+    plot_trajectory(trajectory)
+
+def run_monte_carlo(n_samples):
+    
     entry_altitude = 125000.0  
     entry_velocity = 5500.0   
     entry_gamma_deg = -12.0    
@@ -117,13 +177,14 @@ def run_monte_carlo(n_samples=500, seed=42):
     beta_nominal = 100.0       
     gamma_std = 0.5           
     beta_rel_std = 0.05      
-    wind_std = 15.0          
+    wind_std = 15.0     
 
+    
     entry_gamma_samples = np.random.normal(entry_gamma_deg, gamma_std, n_samples)
-    beta_samples = np.random.uniform(beta_nominal, beta_nominal * beta_rel_std, n_samples)
-    wind_east_samples = np.random.normal(0.0, wind_std, n_samples)
+    beta_samples = np.random.normal(beta_nominal, beta_nominal * beta_rel_std, n_samples)        
+    wind_east_samples = np.random.normal(0.0,wind_std, n_samples)
     wind_north_samples = np.random.normal(0.0, wind_std, n_samples)
-
+    
     landing_lon = np.zeros(n_samples)
     landing_lat = np.zeros(n_samples)
     landing_vel = np.zeros(n_samples)
@@ -371,15 +432,31 @@ def print_analysis_summary(analysis_results):
     print(f"3-sigma Ellipse Semi-axes: {analysis_results['radius_lon_km']:.2f} km × {analysis_results['radius_lat_km']:.2f} km")
     print(f"Footprint Area (3-sigma ellipse): {analysis_results['footprint_area']:.2f} km²")
 
-def main():
+if __name__ == "__main__":
     print("Mars Entry, Descent, and Landing Uncertainty Analysis")
     print("=====================================================")
 
-    print("\nRunning Monte Carlo simulation...")
-    mc_results = run_monte_carlo(n_samples=500)  # Increase to 1000 for better statistics
+    print("\nSimulating nominal trajectory...")
+    nominal_traj = simulate_nominal_trajectory()
+        
+    # Get number of samples
+    while True:
+        try:
+            n_samples = int(input("\nEnter number of Monte Carlo samples (10-1000): "))
+            if 10 <= n_samples <= 1000:
+                break
+            else:
+                print("Please enter a value between 10 and 1000.")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
 
-    print("\n Plotting distributions of input and output variables from Monte Carlo simulations. ")
-    plot_mc_distributions(mc_results)
+    print("\nRunning Monte Carlo simulation...")
+    mc_results = run_monte_carlo(
+        n_samples=n_samples
+    )
+
+    print("\nPlotting distributions of input and output variables from Monte Carlo simulations...")
+    plot_mc_distributions(mc_results, filename="MC_Distributions.png")
 
     print("\nAnalyzing landing footprint...")
     analysis_results = analyze_footprint(mc_results)
@@ -401,6 +478,3 @@ def main():
     print(f"3-sigma radius: {3*std_dist_from_ideal:.2f} km")
 
     print("\nAnalysis complete!")
-
-if __name__ == "__main__":
-    main()
