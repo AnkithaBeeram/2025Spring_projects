@@ -29,6 +29,7 @@ This project employs Monte Carlo simulations to systematically evaluate risks du
 
 To run the nominal EDL simulation and Monte Carlo analysis:
     python mars_edl_analysis.py
+    
 You will be prompted to enter the number of Monte Carlo samples (default: 500). The script will generate trajectory plots, landing footprint visualizations, correlation heatmaps, safety zone diagrams, and a final analysis summary.
 
 ## Hypothesis

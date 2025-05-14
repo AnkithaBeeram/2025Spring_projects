@@ -77,6 +77,22 @@ class MarsEDLAnalysis:
             print("ASSESSMENT: MODERATE RISK - EDL parameters may need adjustment for improved safety margin.")
         else:
             print("ASSESSMENT: HIGH RISK - EDL parameters should be reconsidered for mission safety.")
+    
+    def calculate_acceleration(self, velocity: np.ndarray, time: np.ndarray) -> np.ndarray:
+        """Calculate acceleration from velocity data using central differences.
+        
+        Args:
+            velocity: Array of velocity values [m/s]
+            time: Array of time values [s]
+            
+        Returns:
+            Array of acceleration values [m/s²]
+        """
+        acceleration = np.zeros_like(velocity)
+        acceleration[0] = (velocity[1] - velocity[0]) / (time[1] - time[0])
+        acceleration[1:-1] = (velocity[2:] - velocity[:-2]) / (time[2:] - time[:-2])
+        acceleration[-1] = (velocity[-1] - velocity[-2]) / (time[-1] - time[-2])
+        return acceleration
 
     def test_hypothesis(self, n_samples=500):
         """Run simulations to test the hypothesis about parachute deployment altitude."""
@@ -94,7 +110,7 @@ class MarsEDLAnalysis:
         
         print("\nRunning hypothesis case with parachute deployment at 50 km...")
         hypothesis_params = nominal_params.copy()
-        hypothesis_params['parachute_deploy_altitude'] = 50000.0
+        hypothesis_params['parachute_deploy_altitude'] = 5000.0
         hypothesis_trajectory = self.simulation.simulate_edl(hypothesis_params)
         self.visualization.plot_trajectory(hypothesis_trajectory, 
                                         title="EDL Trajectory with Parachute at 5 km", 
@@ -103,19 +119,31 @@ class MarsEDLAnalysis:
         hypothesis_results = self.simulation.run_monte_carlo(n_samples, hypothesis_params)
         hypothesis_analysis = self.simulation.analyze_footprint(hypothesis_results)
         
-        def get_post_parachute_velocities(results, trajectory):
+        def get_post_parachute_velocities_acceleration(results, trajectory):
+            deploy_indices = np.where(np.diff(trajectory['parachute_state'] > 0.5))[0]
             deploy_indices = np.where(np.diff(trajectory['parachute_state'] > 0.5))[0]
             if len(deploy_indices) > 0:
                 deploy_idx = deploy_indices[0] + 1
                 post_parachute_velocities = trajectory['velocity'][deploy_idx:]
-                return np.mean(post_parachute_velocities)
-            return np.mean(trajectory['velocity'])  
+                post_parachute_acceleration = self.calculate_acceleration(
+                    trajectory['velocity'][deploy_idx:],
+                    trajectory['time'][deploy_idx:]
+                )
+                return np.mean(post_parachute_velocities), np.mean(np.abs(post_parachute_acceleration))
 
-        nominal_landing_vel = get_post_parachute_velocities(nominal_results, nominal_trajectory)
-        hypothesis_landing_vel = get_post_parachute_velocities(hypothesis_results, hypothesis_trajectory)
-        velocity_increase = (nominal_landing_vel - hypothesis_landing_vel) / nominal_landing_vel * 100
-
+            return np.mean(trajectory['velocity']), np.mean(np.abs(self.calculate_acceleration(trajectory['velocity'], trajectory['time'])))
         
+        nominal_vel_acc_result = get_post_parachute_velocities_acceleration(nominal_results, nominal_trajectory)
+        hypothesis_vel_acc_result = get_post_parachute_velocities_acceleration(hypothesis_results, hypothesis_trajectory)
+        
+        nominal_landing_vel= nominal_vel_acc_result[0]
+        hypothesis_landing_vel = hypothesis_vel_acc_result[0]
+
+        nominal_acceleration = nominal_vel_acc_result[1]
+        hypothesis_acceleration = hypothesis_vel_acc_result[1]
+
+        velocity_increase = (hypothesis_landing_vel - nominal_landing_vel) / nominal_landing_vel * 100
+        acceleration_change = (hypothesis_acceleration - nominal_acceleration) / nominal_acceleration * 100
         
         plt = self.visualization.plot_hypothesis_comparison(
             nominal_landing_vel, hypothesis_landing_vel, nominal_trajectory, hypothesis_trajectory,
@@ -133,14 +161,20 @@ class MarsEDLAnalysis:
         print(f"\nNominal mean landing velocity: {nominal_landing_vel:.2f} m/s")
         print(f"Hypothesis mean landing velocity: {hypothesis_landing_vel:.2f} m/s")
         print(f"Velocity increase: {velocity_increase:.1f}%")
+        print(f"\nNominal mean acceleration: {nominal_acceleration:.2f} m/s²")
+        print(f"Hypothesis mean acceleration: {hypothesis_acceleration:.2f} m/s²")
+        print(f"Acceleration change: {acceleration_change:.1f}%")
         
         
         velocity_hypothesis = abs(velocity_increase) >= 22.0
+        acceleration_hypothesis = abs(acceleration_change) >= 15.0
+
         
         
         print("\nHypothesis validation:")
         print(f"H1 Part 1 - Velocity increase of 22%: {'VALIDATED' if velocity_hypothesis else 'NOT VALIDATED'}")
-        
+        print(f"H1 Part 2 - Acceleration change of 15%: {'VALIDATED' if acceleration_hypothesis else 'NOT VALIDATED'}")
+
         return {
             'nominal_results': nominal_results,
             'nominal_analysis': nominal_analysis,
@@ -148,6 +182,8 @@ class MarsEDLAnalysis:
             'hypothesis_analysis': hypothesis_analysis,
             'velocity_increase': velocity_increase,
             'velocity_hypothesis_validated': velocity_hypothesis,
+            'acceleration_change': acceleration_change,
+            'acceleration_hypothesis_validated': acceleration_hypothesis,
         }
 
 def main():

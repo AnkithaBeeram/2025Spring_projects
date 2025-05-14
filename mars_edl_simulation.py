@@ -25,12 +25,12 @@ class MarsEDLSimulation:
     # Nominal parameters
     NOMINAL_PARAMS = {
         'entry_gamma_deg': -12.0,     # Entry flight path angle [deg]
-        'entry_altitude': 125000.0,   # Entry altitude [m]
+        'entry_altitude': 80000.0,   # Entry altitude [m]
         'entry_velocity': 5500.0,     # Entry velocity [m/s]
         'entry_lat_deg': 0.0,         # Entry latitude [deg]
         'entry_lon_deg': 0.0,         # Entry longitude [deg]
         'beta': 100.0,                # Ballistic coefficient [kg/m²]
-        'parachute_deploy_altitude': 90000.0,  # Nominal parachute deployment altitude [m]
+        'parachute_deploy_altitude': 15000.0,  # Nominal parachute deployment altitude [m]
         'parachute_cd_s': 400.0,      # Parachute drag coefficient × area [m²]
         'landing_lon': 0.0,           # Target landing longitude [deg]
         'landing_lat': 0.0,           # Target landing latitude [deg]
@@ -63,6 +63,13 @@ class MarsEDLSimulation:
         H = 11.1e3      # Scale height [m]
         alt_clipped = np.maximum(altitude, 0)
         rho = rho0 * np.exp(-alt_clipped / H)
+        return rho
+        if isinstance(altitude, np.ndarray):
+            high_alt_mask = altitude > 50000
+            rho[high_alt_mask] = rho0 * np.exp(-50000/H) * np.exp(-(altitude[high_alt_mask]-50000)/(H*0.6))
+        elif altitude > 50000:
+            rho = rho0 * np.exp(-50000/H) * np.exp(-(altitude-50000)/(H*0.6))
+            
         return rho
 
     @staticmethod
@@ -176,7 +183,7 @@ class MarsEDLSimulation:
         
         return state + (k1 + 2*k2 + 2*k3 + k4) / 6
 
-    def simulate_edl(self, params, dt=0.5, max_steps=20000):
+    def simulate_edl(self, params, dt=0.1, max_steps=20000):
         """Simulate a complete EDL trajectory with given parameters.
         
         Args:
@@ -305,7 +312,7 @@ class MarsEDLSimulation:
                 - parachute_deploy_time: Parachute deployment times [s]
                 - powered_descent_start_time: Powered descent start times [s]
         """
-        
+
         if base_params is None:
             base_params = self.NOMINAL_PARAMS.copy()
         
@@ -314,7 +321,7 @@ class MarsEDLSimulation:
         wind_std = 15.0            # Standard deviation of surface winds [m/s]
         
         if hypothesis == 'parachute_alt':
-            base_params['parachute_deploy_altitude'] = 50000.0
+            base_params['parachute_deploy_altitude'] = 5000.0
         
         
         entry_gamma_samples = np.random.normal(base_params['entry_gamma_deg'], gamma_std, n_samples)

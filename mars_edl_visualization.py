@@ -307,24 +307,30 @@ class MarsEDLVisualization:
         plt.figure(figsize=(15, 10))
         
         plt.subplot(2, 2, 1)
-        plt.plot(nominal_trajectory['altitude']/1000, nominal_trajectory['velocity'], 'b-', 
-                label=f'Nominal')
-        plt.plot(hypothesis_trajectory['altitude']/1000, hypothesis_trajectory['velocity'], 'r-', 
-                label=f'Hypothesis')
-        
+    
+        # Nominal trajectory processing
         nom_deploy_idx = np.where(np.diff(nominal_trajectory['parachute_state'] > 0.5))[0]
         if len(nom_deploy_idx) > 0:
             nom_deploy_idx = nom_deploy_idx[0] + 1
+            plt.plot(nominal_trajectory['altitude'][nom_deploy_idx:]/1000, 
+                    nominal_trajectory['velocity'][nom_deploy_idx:], 'b-', label='Nominal')
             plt.axvline(nominal_trajectory['altitude'][nom_deploy_idx]/1000, color='b', linestyle='--')
-            
+        else:  # Fallback if no parachute deployment found
+            plt.plot(nominal_trajectory['altitude']/1000, nominal_trajectory['velocity'], 'b-', label='Nominal')
+
+        # Hypothesis trajectory processing
         hyp_deploy_idx = np.where(np.diff(hypothesis_trajectory['parachute_state'] > 0.5))[0]
         if len(hyp_deploy_idx) > 0:
             hyp_deploy_idx = hyp_deploy_idx[0] + 1
+            plt.plot(hypothesis_trajectory['altitude'][hyp_deploy_idx:]/1000, 
+                    hypothesis_trajectory['velocity'][hyp_deploy_idx:], 'r-', label='Hypothesis')
             plt.axvline(hypothesis_trajectory['altitude'][hyp_deploy_idx]/1000, color='r', linestyle='--')
-        
+        else:  
+            plt.plot(hypothesis_trajectory['altitude']/1000, hypothesis_trajectory['velocity'], 'r-', label='Hypothesis')
+
         plt.xlabel('Altitude (km)')
         plt.ylabel('Velocity (m/s)')
-        plt.title('Velocity vs. Altitude Comparison')
+        plt.title('Velocity vs. Altitude Comparison (Post-Parachute Deployment)')  # Updated title
         plt.grid(True)
         plt.legend()
         
@@ -359,7 +365,6 @@ class MarsEDLVisualization:
         plt.subplot(2, 2, 3)
         def extract_post_parachute_velocities(results, trajectory):
             post_parachute_vels = []
-            # Find where parachute deploys in the trajectory
             deploy_indices = np.where(np.diff(trajectory['parachute_state'] > 0.5))[0]
             if len(deploy_indices) > 0:
                 deploy_idx = deploy_indices[0] + 1
