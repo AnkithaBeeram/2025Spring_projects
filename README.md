@@ -28,13 +28,26 @@ This project employs Monte Carlo simulations to systematically evaluate risks du
 ## Running a Simulation
 
 To run the nominal EDL simulation and Monte Carlo analysis:
+
     python mars_edl_analysis.py
-    
+
 You will be prompted to enter the number of Monte Carlo samples (default: 500). The script will generate trajectory plots, landing footprint visualizations, correlation heatmaps, safety zone diagrams, and a final analysis summary.
 
 ## Hypothesis
 
-If parachute deploys at a different altitude instead  nominal value, Then mean velocity after parachute deployment changes.
+If the parachute deployment altitude deviates from the nominal 15,000 meters (15 Kms) to 5000 meters (5 Kms), then both mean velocity and mean deceleration after deployment will change measurably (22% and 15% respectively).
+
+Trajectory when parachute deployment is at 15 km:
+
+![alt text](https://github.com/AnkithaBeeram/2025Spring_projects/blob/main/Nominal_Trajectory.png)
+
+Trajectory when parachute deployment is at 5 Km:
+
+![alt text](https://github.com/AnkithaBeeram/2025Spring_projects/blob/main/Hypothesis_Trajectory.png)
+
+Hypothesis to Nominal Comparison:
+
+![alt text](https://github.com/AnkithaBeeram/2025Spring_projects/blob/main/Hypothesis_Comparison.png)
 
 ## Contributions
 
